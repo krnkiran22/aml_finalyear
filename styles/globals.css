@@ -1,0 +1,166 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* === BACKGROUNDS === */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: #111111;
+  --bg-elevated: #1c1c1e;
+  --bg-hover: #2c2c2e;
+
+  /* === APPLE SYSTEM COLORS === */
+  --color-blue: #0071e3;
+  --color-blue-hover: #0077ed;
+  --color-blue-light: rgba(0, 113, 227, 0.15);
+  --color-green: #30d158;
+  --color-green-light: rgba(48, 209, 88, 0.15);
+  --color-orange: #ff9f0a;
+  --color-orange-light: rgba(255, 159, 10, 0.15);
+  --color-red: #ff453a;
+  --color-red-light: rgba(255, 69, 58, 0.15);
+  --color-yellow: #ffd60a;
+  --color-yellow-light: rgba(255, 214, 10, 0.15);
+  --color-purple: #bf5af2;
+
+  /* === TEXT === */
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #636366;
+  --text-disabled: #3a3a3c;
+
+  /* === BORDERS === */
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-focus: rgba(0, 113, 227, 0.6);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+
+  /* === GLASS === */
+  --glass-bg: rgba(28, 28, 30, 0.8);
+  --glass-blur: blur(20px) saturate(180%);
+
+  /* === RISK COLORS === */
+  --risk-safe: var(--color-green);
+  --risk-safe-bg: var(--color-green-light);
+  --risk-low: var(--color-yellow);
+  --risk-low-bg: var(--color-yellow-light);
+  --risk-flagged: var(--color-orange);
+  --risk-flagged-bg: var(--color-orange-light);
+  --risk-high: var(--color-red);
+  --risk-high-bg: var(--color-red-light);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-disabled);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-card border border-border-default rounded-card p-6;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .btn-primary {
+    @apply bg-apple-blue text-white rounded-button px-6 py-3 text-base font-medium border-0;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn-primary:hover {
+    background: var(--color-blue-hover);
+    transform: scale(1.01);
+  }
+  .btn-primary:active {
+    transform: scale(0.99);
+  }
+  .btn-primary:disabled {
+    @apply opacity-40 cursor-not-allowed;
+    transform: none;
+  }
+
+  .btn-secondary {
+    @apply bg-bg-elevated text-text-primary rounded-button px-6 py-3 text-base font-medium;
+    border: 1px solid var(--border-default);
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn-secondary:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+  }
+
+  .input-field {
+    @apply bg-bg-elevated text-text-primary rounded-input px-4 py-3 text-base w-full;
+    border: 1px solid var(--border-default);
+    transition: border-color 0.2s ease;
+  }
+  .input-field:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  }
+  .input-field::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  .label {
+    @apply text-sm font-medium text-text-secondary;
+    letter-spacing: 0.01em;
+  }
+
+  .page-transition {
+    animation: fadeIn 0.3s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
