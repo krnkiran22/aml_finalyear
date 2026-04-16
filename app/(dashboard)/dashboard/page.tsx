@@ -9,9 +9,10 @@ import { ScoreBreakdownCard } from '@/components/scoring/ScoreBreakdownCard';
 import { TransactionRiskBadge } from '@/components/transactions/TransactionRiskBadge';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { truncateAddress, formatCurrency, formatDate } from '@/lib/utils';
-import { Bell, TrendingUp, ArrowLeftRight, CheckCircle, Clock, XCircle, AlertTriangle } from 'lucide-react';
+import { Bell, ArrowLeftRight, CheckCircle, Clock, XCircle, AlertTriangle } from 'lucide-react';
 import { RiskScoreHistoryPublic, TransactionPublic, AlertPublic } from '@/lib/shared';
 import Link from 'next/link';
+import { WalletLookupCard } from '@/components/dashboard/WalletLookupCard';
 
 interface RiskScoreData {
   composite: number;
@@ -203,6 +204,9 @@ export default function DashboardPage() {
             </div>
           )}
         </motion.div>
+
+        {/* Wallet Risk Lookup */}
+        <WalletLookupCard />
       </div>
     </div>
   );
