@@ -10,7 +10,7 @@ import { TransactionRiskBadge } from '@/components/transactions/TransactionRiskB
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { truncateAddress, formatCurrency, formatDate } from '@/lib/utils';
 import { Bell, ArrowLeftRight, CheckCircle, Clock, XCircle, AlertTriangle } from 'lucide-react';
-import { RiskScoreHistoryPublic, TransactionPublic, AlertPublic } from '@/lib/shared';
+import { TransactionPublic, AlertPublic } from '@/lib/shared';
 import Link from 'next/link';
 import { WalletLookupCard } from '@/components/dashboard/WalletLookupCard';
 
@@ -28,12 +28,17 @@ export default function DashboardPage() {
   const [riskScore, setRiskScore] = useState<RiskScoreData | null>(null);
   const [transactions, setTransactions] = useState<TransactionPublic[]>([]);
   const [alerts, setAlerts] = useState<AlertPublic[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      if (!token) return;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
       try {
+        setError(null);
         const [scoreData, txData, alertData] = await Promise.all([
           api.get<RiskScoreData>('/user/me/risk-score', token),
           api.get<{ transactions: TransactionPublic[] }>('/transactions?limit=5', token),
@@ -44,6 +49,10 @@ export default function DashboardPage() {
         setAlerts(alertData.alerts.filter((a) => !a.resolved).slice(0, 3));
       } catch (err) {
         console.error('Dashboard load error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+        setRiskScore(null);
+        setTransactions([]);
+        setAlerts([]);
       } finally {
         setLoading(false);
       }
@@ -51,6 +60,7 @@ export default function DashboardPage() {
     load();
   }, [token]);
 
+  const walletLabel = user?.walletAddress ? truncateAddress(user.walletAddress) : 'Not connected';
   const kycStatusIcon = {
     VERIFIED: <CheckCircle size={14} color="#30d158" />,
     PENDING: <Clock size={14} color="#ffd60a" />,
@@ -66,18 +76,46 @@ export default function DashboardPage() {
     );
   }
 
+  if (!token) {
+    return (
+      <div className="page-transition">
+        <PageHeader title="Dashboard" subtitle="Connect your wallet to view live compliance data" />
+        <div className="card text-center py-16">
+          <p className="text-text-primary font-medium mb-2">Wallet connection required</p>
+          <p className="text-text-tertiary text-sm">
+            This dashboard now shows only live data from your production backend.
+          </p>
+          <Link href="/connect" className="btn-primary inline-flex mt-6">
+            Connect Wallet
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-transition">
       <PageHeader
         title="Dashboard"
-        subtitle={`Welcome back, ${truncateAddress(user?.walletAddress ?? '')}`}
+        subtitle={`Connected wallet: ${walletLabel}`}
       />
+
+      {error && (
+        <div
+          className="rounded-2xl px-5 py-3 mb-6 text-sm"
+          style={{ background: 'rgba(255,69,58,0.08)', border: '1px solid rgba(255,69,58,0.25)', color: '#ff453a' }}
+        >
+          {error}
+        </div>
+      )}
 
       {/* Top info strip */}
       <div className="flex items-center gap-4 mb-8">
         <div className="flex items-center gap-2 text-sm">
           {kycStatusIcon}
-          <span className="text-text-secondary">KYC {user?.kycStatus}</span>
+          <span className="text-text-secondary">
+            KYC {user?.kycStatus}
+          </span>
         </div>
         {user?.monthlyThreshold && (
           <div className="flex items-center gap-2 text-sm text-text-secondary">
@@ -174,7 +212,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
-              <Bell size={16} color="#636366" />
+              <Bell size={16} color="#ff453a" />
               <h2 className="font-medium text-text-primary">Active Alerts</h2>
             </div>
             <Link href="/alerts" className="text-sm text-apple-blue hover:underline">View all</Link>
@@ -196,7 +234,10 @@ export default function DashboardPage() {
                   >
                     <div className="flex items-start gap-2">
                       <AlertTriangle size={13} color={sev} className="mt-0.5 flex-shrink-0" />
-                      <p className="text-xs text-text-secondary leading-relaxed">{alert.message}</p>
+                      <div>
+                        <p className="text-xs font-semibold mb-0.5" style={{ color: sev }}>{alert.severity}</p>
+                        <p className="text-xs text-text-secondary leading-relaxed">{alert.message}</p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -206,7 +247,7 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Wallet Risk Lookup */}
-        <WalletLookupCard />
+        <WalletLookupCard defaultAddress={user?.walletAddress ?? undefined} />
       </div>
     </div>
   );

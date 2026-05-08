@@ -1,12 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronRight, Database, Cpu, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Search, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth.store';
 import { api } from '@/lib/api';
-import { truncateAddress } from '@/lib/utils';
+import { truncateAddress, formatCurrency, formatDate } from '@/lib/utils';
 import { TransactionRiskBadge } from '@/components/transactions/TransactionRiskBadge';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { TransactionPublic } from '@/lib/shared';
 
 interface LookupResult {
   walletAddress: string;
@@ -18,15 +19,15 @@ interface LookupResult {
   score3Behaviour: number;
   txCount: number;
   kycStatus: string | null;
-  source: 'database' | 'simulation';
+  source: 'explorer';
+  monthlyThreshold: number;
+  thresholdSource: 'wallet-profile' | 'viewer-profile' | 'default';
+  countryCode: string;
+  countryName: string;
+  countrySource: 'wallet-profile' | 'viewer-profile' | 'default';
+  fatfStatus: string | null;
+  recentTransactions: TransactionPublic[];
 }
-
-const PRESET_WALLETS = [
-  { label: 'Vitalik.eth', address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045' },
-  { label: 'High Risk Demo', address: '0xDead000000000000000042069420694206942069' },
-  { label: 'Flagged Demo', address: '0xAbCdEf0123456789AbCdEf0123456789AbCdEf01' },
-  { label: 'Safe Demo', address: '0x0000000000000000000000000000000000000001' },
-];
 
 const SCORE_COLOR: Record<string, string> = {
   SAFE: '#30d158',
@@ -73,9 +74,13 @@ function KycBadge({ status }: { status: string | null }) {
   );
 }
 
-export function WalletLookupCard() {
-  const { token } = useAuthStore();
-  const [input, setInput] = useState('');
+interface WalletLookupCardProps {
+  defaultAddress?: string;
+}
+
+export function WalletLookupCard({ defaultAddress }: WalletLookupCardProps) {
+  const { token, user } = useAuthStore();
+  const [input, setInput] = useState(defaultAddress ?? '');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,11 +104,6 @@ export function WalletLookupCard() {
     }
   }
 
-  function handlePreset(address: string) {
-    setInput(address);
-    lookup(address);
-  }
-
   const color = result ? (SCORE_COLOR[result.riskLevel] ?? '#636366') : '#636366';
   const bg = result ? (SCORE_BG[result.riskLevel] ?? 'transparent') : 'transparent';
 
@@ -119,14 +119,8 @@ export function WalletLookupCard() {
         <div className="flex items-center gap-2">
           <Search size={16} color="#636366" />
           <h2 className="font-medium text-text-primary">Wallet Risk Lookup</h2>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-medium"
-            style={{ background: 'rgba(0,113,227,0.12)', color: '#0071e3' }}
-          >
-            Demo Tool
-          </span>
         </div>
-        <p className="text-xs text-text-disabled">Check any wallet's AML risk score</p>
+        <p className="text-xs text-text-disabled">Analyse any wallet using live explorer activity</p>
       </div>
 
       {/* Search input */}
@@ -138,14 +132,22 @@ export function WalletLookupCard() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && lookup(input)}
             placeholder="0x... Ethereum wallet address"
-            className="w-full font-mono text-sm text-text-primary placeholder:text-text-disabled rounded-xl px-4 py-3 outline-none focus:ring-1"
+            className="input-field w-full font-mono text-sm placeholder:text-text-disabled"
             style={{
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.08)',
-              focusRingColor: '#0071e3',
             }}
           />
         </div>
+        {user?.walletAddress && (
+          <button
+            onClick={() => setInput(user.walletAddress)}
+            className="px-4 py-3 rounded-xl text-sm"
+            style={{ background: 'rgba(255,255,255,0.06)', color: '#a1a1a6' }}
+          >
+            Use My Wallet
+          </button>
+        )}
         <button
           onClick={() => lookup(input)}
           disabled={loading}
@@ -156,28 +158,13 @@ export function WalletLookupCard() {
         </button>
       </div>
 
-      {/* Preset quick-pick wallets */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {PRESET_WALLETS.map((w) => (
-          <button
-            key={w.address}
-            onClick={() => handlePreset(w.address)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#aeaeb2',
-            }}
-          >
-            <ChevronRight size={11} />
-            {w.label}
-          </button>
-        ))}
-      </div>
-
       {error && (
         <p className="text-sm mb-4" style={{ color: '#ff453a' }}>{error}</p>
       )}
+
+      <p className="text-xs text-text-disabled mb-4">
+        If the entered wallet is not registered in ChainGuard, the analysis uses your signed-in threshold and country profile as the reference context.
+      </p>
 
       {/* Result */}
       <AnimatePresence mode="wait">
@@ -199,23 +186,12 @@ export function WalletLookupCard() {
                 </p>
                 <div className="flex items-center gap-3">
                   <KycBadge status={result.kycStatus} />
-                  {result.txCount > 0 && (
-                    <span className="text-xs text-text-disabled">{result.txCount} transactions</span>
-                  )}
+                  <span className="text-xs text-text-disabled">{result.txCount} transactions analysed</span>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <TransactionRiskBadge riskLevel={result.riskLevel} size="md" />
-                <div className="flex items-center gap-1.5">
-                  {result.source === 'database' ? (
-                    <Database size={11} color="#30d158" />
-                  ) : (
-                    <Cpu size={11} color="#636366" />
-                  )}
-                  <span className="text-xs text-text-disabled">
-                    {result.source === 'database' ? 'Live data' : 'Simulated'}
-                  </span>
-                </div>
+                <span className="text-xs text-text-disabled">Live explorer data</span>
               </div>
             </div>
 
@@ -235,51 +211,92 @@ export function WalletLookupCard() {
               <div className="flex-1">
                 <p className="text-xs text-text-tertiary mb-3 font-medium uppercase tracking-wider">Score Breakdown</p>
                 <div className="space-y-2.5">
-                  {!result.isRegistered ? (
-                    <>
-                      <div>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-text-tertiary">Country & Identity</span>
-                          <span className="text-text-secondary font-medium">{result.score1Country}</span>
-                        </div>
-                        <ScoreBar value={result.score1Country} max={350} color={color} />
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-text-tertiary">Transactional</span>
-                          <span className="text-text-secondary font-medium">{result.score2Transaction}</span>
-                        </div>
-                        <ScoreBar value={result.score2Transaction} max={400} color={color} />
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-text-tertiary">Behavioural</span>
-                          <span className="text-text-secondary font-medium">{result.score3Behaviour}</span>
-                        </div>
-                        <ScoreBar value={result.score3Behaviour} max={250} color={color} />
-                      </div>
-                    </>
-                  ) : (
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-text-tertiary">Country & Identity</span>
+                      <span className="text-text-secondary font-medium">{result.score1Country}</span>
+                    </div>
+                    <ScoreBar value={result.score1Country} max={100} color={color} />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-text-tertiary">Transactional</span>
+                      <span className="text-text-secondary font-medium">{result.score2Transaction}</span>
+                    </div>
+                    <ScoreBar value={result.score2Transaction} max={100} color={color} />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-text-tertiary">Behavioural</span>
+                      <span className="text-text-secondary font-medium">{result.score3Behaviour}</span>
+                    </div>
+                    <ScoreBar value={result.score3Behaviour} max={100} color={color} />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-text-tertiary">Threshold Reference</span>
+                      <span className="text-text-secondary font-medium">{formatCurrency(result.monthlyThreshold)}</span>
+                    </div>
+                    <p className="text-xs text-text-disabled">
+                      {result.thresholdSource === 'wallet-profile'
+                        ? 'Taken from this wallet profile'
+                        : result.thresholdSource === 'viewer-profile'
+                          ? 'Taken from your signed-in profile'
+                          : 'Using the default demo threshold'}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-text-tertiary">Country Risk Reference</span>
+                      <span className="text-text-secondary font-medium">{result.countryName} ({result.countryCode})</span>
+                    </div>
+                    <p className="text-xs text-text-disabled">
+                      {result.fatfStatus ? `${result.fatfStatus.replaceAll('_', ' ')} FATF status` : 'No FATF label available'}
+                    </p>
+                  </div>
+                  {result.isRegistered && (
                     <div>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-text-tertiary">Composite Risk Score</span>
-                        <span className="text-text-secondary font-medium">{result.composite} / 1000</span>
+                        <span className="text-text-tertiary">Profile Match</span>
+                        <span className="text-text-secondary font-medium">Registered ChainGuard wallet</span>
                       </div>
-                      <ScoreBar value={result.composite} max={1000} color={color} />
-                      <p className="text-xs text-text-disabled mt-2">
-                        Full breakdown available in the registered user's profile
-                      </p>
+                      <p className="text-xs text-text-disabled">This address already has a ChainGuard user profile and KYC status.</p>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {result.source === 'simulation' && (
-              <p className="text-xs text-text-disabled px-3 py-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                This wallet is not registered on ChainGuard. Score is deterministically simulated from the wallet address — the same address always returns the same score.
-              </p>
-            )}
+            <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-text-tertiary font-medium uppercase tracking-wider">Recent Wallet Activity</p>
+                <span className="text-xs text-text-disabled">{result.recentTransactions.length} shown</span>
+              </div>
+              {result.recentTransactions.length === 0 ? (
+                <p className="text-sm text-text-tertiary">
+                  No explorer transactions were found for this wallet on the configured network yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {result.recentTransactions.slice(0, 3).map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="flex items-center justify-between rounded-xl px-3 py-2"
+                      style={{ background: 'rgba(255,255,255,0.03)' }}
+                    >
+                      <div>
+                        <p className="font-mono text-xs text-text-secondary">{truncateAddress(tx.toAddress)}</p>
+                        <p className="text-xs text-text-disabled">{formatDate(tx.timestamp)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-text-primary">{tx.amountETH.toFixed(4)} ETH</p>
+                        <p className="text-xs text-text-disabled">{formatCurrency(tx.amountUSD)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

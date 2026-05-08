@@ -25,10 +25,16 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Network request failed';
+    throw new Error(`Cannot reach API at ${API_URL}${path}: ${message}`);
+  }
 
   const data = await response.json().catch(() => ({ error: 'Invalid response' }));
 
@@ -62,11 +68,16 @@ export const api = {
       method: 'POST',
       body: formData,
       headers: hdrs,
-    }).then(async (res) => {
-      const data = await res.json().catch(() => ({ error: 'Invalid response' }));
-      if (!res.ok) throw new ApiError(res.status, data.error ?? 'Upload failed', data.details);
-      return data as T;
-    });
+    })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Network request failed';
+        throw new Error(`Cannot reach API at ${API_URL}${path}: ${message}`);
+      })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({ error: 'Invalid response' }));
+        if (!res.ok) throw new ApiError(res.status, data.error ?? 'Upload failed', data.details);
+        return data as T;
+      });
   },
 };
 

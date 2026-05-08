@@ -11,6 +11,7 @@ import { formatDate, getScoreColor } from '@/lib/utils';
 import { RiskLevel } from '@/lib/shared';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChevronDown } from 'lucide-react';
+import Link from 'next/link';
 
 interface RiskScoreData {
   composite: number;
@@ -46,15 +47,21 @@ export default function RiskScorePage() {
   const [data, setData] = useState<RiskScoreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [openFAQ, setOpenFAQ] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
-      if (!token) return;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
       try {
         const res = await api.get<RiskScoreData>('/user/me/risk-score', token);
         setData(res);
+        setError(null);
       } catch (err) {
         console.error(err);
+        setError(err instanceof Error ? err.message : 'Failed to load risk score');
       } finally {
         setLoading(false);
       }
@@ -64,6 +71,23 @@ export default function RiskScorePage() {
 
   if (loading) {
     return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  }
+
+  if (!token) {
+    return (
+      <div className="page-transition">
+        <PageHeader title="Risk Score" subtitle="Connect your wallet to view live risk scoring" />
+        <div className="card text-center py-16">
+          <p className="text-text-primary font-medium mb-2">Wallet connection required</p>
+          <p className="text-text-tertiary text-sm">
+            This page now reads live score data from the backend instead of sample data.
+          </p>
+          <Link href="/connect" className="btn-primary inline-flex mt-6">
+            Connect Wallet
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const chartData = data?.history
@@ -77,6 +101,15 @@ export default function RiskScorePage() {
   return (
     <div className="page-transition">
       <PageHeader title="Risk Score" subtitle="Your current AML risk assessment and history" />
+
+      {error && (
+        <div
+          className="rounded-2xl px-5 py-3 mb-6 text-sm"
+          style={{ background: 'rgba(255,69,58,0.08)', border: '1px solid rgba(255,69,58,0.25)', color: '#ff453a' }}
+        >
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-12 gap-6">
         {/* Gauge */}
